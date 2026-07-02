@@ -48,8 +48,6 @@ async function register(req, res) {
       rol: nuevoUsuario.rol,
     });
   } catch (error) {
-    // Si Sequelize tira un error de validación (ej: email mal formado por
-    // el validate: isEmail del modelo), lo mandamos como 400.
     if (error.name === 'SequelizeValidationError') {
       return res.status(400).json({ error: error.errors[0].message });
     }
@@ -69,8 +67,6 @@ async function login(req, res) {
 
     const usuario = await Usuario.findOne({ where: { email } });
 
-    // Mensaje genérico a propósito: no le decimos al que intenta loguearse
-    // si el problema fue el email o el password, por seguridad.
     if (!usuario) {
       return res.status(401).json({ error: 'Credenciales inválidas' });
     }
@@ -111,8 +107,6 @@ async function login(req, res) {
 
 // POST /api/auth/usuarios
 // Protegida con verificarToken + verificarRol('ADMINISTRADOR') en las rutas.
-// A diferencia de register(), acá el rol SÍ viene del body, porque quien
-// llama ya es un Admin y decide qué tipo de usuario está creando.
 async function crearUsuarioConRol(req, res) {
   try {
     const { nombre, apellido, email, password, celular, rol } = req.body;
@@ -160,12 +154,11 @@ async function crearUsuarioConRol(req, res) {
 }
 
 // GET /api/auth/perfil
-// Usa el usuario_id que viene del token (req.usuario), NUNCA un :id de la
-// URL -- así nadie puede pedir el perfil de otra persona cambiando un id.
+// Usa el usuario_id que viene del token (req.usuario).
 async function perfil(req, res) {
   try {
     const usuario = await Usuario.findByPk(req.usuario.usuario_id, {
-      attributes: { exclude: ['password'] }, // nunca devolver el hash
+      attributes: { exclude: ['password'] },
     });
 
     if (!usuario) {
@@ -180,10 +173,7 @@ async function perfil(req, res) {
 }
 
 // POST /api/auth/seed-admin
-// Endpoint especial, solo para crear el PRIMER administrador del sistema.
-// No usa JWT (todavía no existe ningún admin para generarlo) sino una
-// clave secreta que solo el equipo conoce. Se autodeshabilita una vez que
-// ya existe un admin.
+// Solo para crear el PRIMER administrador del sistema.
 async function seedAdmin(req, res) {
   try {
     const claveRecibida = req.headers['x-seed-secret'];
@@ -223,10 +213,109 @@ async function seedAdmin(req, res) {
   }
 }
 
+// PUT /api/auth/perfil
+async function actualizarPerfil(req, res) {
+    try {
+        const { nombre, apellido, celular } = req.body;
+        const usuario = await Usuario.findByPk(req.usuario.usuario_id);
+
+        if (!usuario) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        usuario.nombre = nombre ?? usuario.nombre;
+        usuario.apellido = apellido ?? usuario.apellido;
+        usuario.celular = celular ?? usuario.celular;
+
+        await usuario.save();
+
+        res.status(200).json({
+            mensaje: 'Perfil actualizado correctamente',
+            usuario: {
+                nombre: usuario.nombre,
+                apellido: usuario.apellido,
+                email: usuario.email,
+                celular: usuario.celular
+            }
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error al actualizar el perfil' });
+    }
+}
+
+// POST /api/auth/logout
+async function logout(req, res) {
+    try {
+        await registrarAuditoria({
+            usuario_id: req.usuario.usuario_id,
+            accion: 'LOGOUT', 
+            descripcion: `Logout exitoso de ${req.usuario.email}`,
+            ip_origen: req.ip,
+        });
+
+        res.status(200).json({ mensaje: 'Sesión cerrada correctamente' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error al procesar el cierre de sesión' });
+    }
+}
+
+// DELETE /api/auth/usuarios/:id
+async function eliminarUsuario(req, res) {
+    try {
+        const { id } = req.params;
+        const usuario = await Usuario.findByPk(id);
+        
+        if (!usuario) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        if (usuario.usuario_id === req.usuario.usuario_id) {
+            return res.status(403).json({ error: 'No podés eliminar tu propia cuenta de administrador' });
+        }
+
+        await usuario.destroy(); 
+        
+        res.status(200).json({ mensaje: 'Usuario eliminado del sistema' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error al eliminar el usuario' });
+    }
+}
+
+// POST /api/auth/usuarios/:id/restaurar
+async function restaurarUsuario(req, res) {
+    try {
+        const { id } = req.params;
+        
+        const usuario = await Usuario.findByPk(id, { paranoid: false });
+        
+        if (!usuario) {
+            return res.status(404).json({ error: 'Usuario no encontrado en la papelera' });
+        }
+
+        if (!usuario.deletedAt) {
+            return res.status(400).json({ error: 'El usuario no estaba eliminado' });
+        }
+
+        await usuario.restore();
+        
+        res.status(200).json({ mensaje: 'Usuario restaurado correctamente' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Error al restaurar el usuario' });
+    }
+}
+
 module.exports = {
   register,
   login,
   crearUsuarioConRol,
   perfil,
   seedAdmin,
+  actualizarPerfil,
+  logout,
+  eliminarUsuario,
+  restaurarUsuario
 };

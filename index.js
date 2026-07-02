@@ -3,7 +3,8 @@ const app = require('./src/app');
 
 const { sequelize, testConnection } = require('./src/config/database');
 
-require('./src/models')
+// Importamos los modelos para que Sequelize registre las tablas y relaciones
+require('./src/models');
 
 const PORT = process.env.PORT || 3000;
 
@@ -12,7 +13,9 @@ async function start() {
     await testConnection();
     console.log(' Conexión a PostgreSQL establecida.');
 
-    await sequelize.sync(); // dev: crea tablas si no existen, según los modelos definidos
+    // Sincronización de la base de datos controlada por booleanos explícitos
+    // logging: false evita que la consola se llene de consultas SQL al sincronizar
+    await sequelize.sync({ force: false, alter: false, logging: false }); 
 
     app.listen(PORT, () => {
       console.log(` Servidor corriendo en http://localhost:${PORT}`);

@@ -101,9 +101,43 @@ docker logs barberia_db    # ver logs de Postgres
 ## Estado del proyecto
 
 - [x] **Fase 1** — Setup backend: servidor Express + conexión Sequelize/PostgreSQL vía Docker
-- [ ] **Fase 2** — Autenticación (Usuario, JWT, roles)
+- [x] **Fase 2** — Autenticación (Usuario, JWT, roles, auditoría de login)
 - [ ] **Fase 3** — CRUDs de negocio (Turnos, Servicios, Barberos, Disponibilidad)
 - [ ] **Fase 4** — Integraciones externas (MercadoPago, etc.) y extras
+
+## Autenticación (Fase 2)
+
+Variables de entorno adicionales necesarias en tu `.env`:
+```
+JWT_SECRET=<clave larga y aleatoria>
+SEED_SECRET=<otra clave distinta, solo para vos>
+```
+Para generar una clave aleatoria rápido:
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+### Crear el primer Administrador
+El registro público (`POST /api/auth/register`) solo permite crear usuarios
+`CLIENTE`. Para crear el primer Admin del sistema, usá el endpoint semilla
+**una sola vez** (se autodeshabilita después):
+```
+POST /api/auth/seed-admin
+Headers: x-seed-secret: <tu SEED_SECRET>
+Body: { "nombre", "apellido", "email", "password", "celular" }
+```
+Una vez creado el Admin, usá el login normal (`POST /api/auth/login`) y con
+ese token podés crear Barberos/Recepcionistas/otros Admins vía
+`POST /api/auth/usuarios` (protegida, requiere rol ADMINISTRADOR).
+
+### Rutas disponibles
+| Método | Ruta | Protegida | Descripción |
+|---|---|---|---|
+| POST | `/api/auth/register` | No | Registro público (rol CLIENTE fijo) |
+| POST | `/api/auth/login` | No | Login, devuelve JWT |
+| POST | `/api/auth/seed-admin` | Clave secreta | Crear el primer Admin (una vez) |
+| GET | `/api/auth/perfil` | Sí (cualquier rol) | Datos del usuario logueado |
+| POST | `/api/auth/usuarios` | Sí (solo ADMINISTRADOR) | Crear usuario con rol específico |
 
 ## Documentación de diseño
 
