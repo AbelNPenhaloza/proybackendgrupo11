@@ -248,10 +248,10 @@ module.exports = {
   listarBarberos,
   obtenerBarbero,
   editarBarbero,
-  alternarEstadoBarbero, // Exportada la nueva función
-  eliminarBarbero,       // Renombrada
+  alternarEstadoBarbero, 
+  eliminarBarbero,       
   agregarDisponibilidad,
   listarDisponibilidad,
   eliminarDisponibilidad,
-  restaurarBarbero       // Exportada la función de restaurar
+  restaurarBarbero       
 };

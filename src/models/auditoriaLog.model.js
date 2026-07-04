@@ -21,7 +21,7 @@ const AuditoriaLog = sequelize.define('AuditoriaLog', {
     // Por ahora solo usamos LOGIN_EXITOSO (spec 002). Los otros dos valores
     // ya están en el enum porque el UML los define, pero se van a empezar a
     // usar cuando implementemos la gestión de Turnos.
-    type: DataTypes.ENUM('LOGIN_EXITOSO', 'TURNO_CREADO', 'TURNO_CANCELADO'),
+    type: DataTypes.ENUM('LOGIN_EXITOSO','LOGOUT', 'TURNO_CREADO', 'TURNO_CANCELADO'),
     allowNull: false,
   },
   descripcion: {

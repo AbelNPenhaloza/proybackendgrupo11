@@ -4,6 +4,8 @@ const pagoController = require('../controllers/pago.controller');
 const verificarToken = require('../middlewares/verificarToken');
 const verificarRol = require('../middlewares/verificarRol');
 
+//POST /api/pagos/webhook - No lleva token ni verificación de rol porque es consumido por MercadoPago
+router.post('/webhook', pagoController.procesarWebhookMP);
 // Consultar pagos (Solo Administradores y Recepcionistas pueden ver el historial de pagos)
 router.get('/:turno_id', verificarToken, verificarRol('ADMINISTRADOR', 'RECEPCIONISTA'), pagoController.obtenerPagoPorTurno);
 

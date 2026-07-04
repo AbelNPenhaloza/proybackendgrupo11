@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 
 // 1. Importar todas las rutas
 const healthRoutes = require('./routes/health.routes');
@@ -13,11 +14,13 @@ const errorHandler = require('./middlewares/errorHandler');
 
 const app = express();
 
+
 // Configuración para proxies
 app.set('trust proxy', true);
 
 // Configuración de CORS (le agregamos un fallback a '*' por si falta la variable de entorno en local)
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
+app.use(helmet());
 app.use(express.json());
 
 // 2. Montar las rutas

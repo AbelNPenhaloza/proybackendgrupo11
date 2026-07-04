@@ -7,34 +7,35 @@ const Pago = sequelize.define('Pago', {
         defaultValue: DataTypes.UUIDV4,
         primaryKey: true,
     },
-    monto: {
+    turno_id: { // Agregado conforme al UML
+        type: DataTypes.UUID,
+        allowNull: false
+    },
+    monto_total: {
         type: DataTypes.DECIMAL(10, 2),
         allowNull: false,
     },
     metodo_pago: {
-        type: DataTypes.ENUM('EFECTIVO', 'MERCADO_PAGO', 'TRANSFERENCIA'),
+        type: DataTypes.ENUM('TARJETA', 'EFECTIVO', 'TRANSFERENCIA', 'QR'),
         allowNull: false,
-        defaultValue: 'EFECTIVO'
     },
-    estado: {
-        type: DataTypes.ENUM('PENDIENTE', 'APROBADO', 'RECHAZADO', 'REEMBOLSADO'),
+    mp_preferencia_id: { 
+        type: DataTypes.STRING,
+        allowNull: true
+    },
+    estado_pago: {
+        type: DataTypes.ENUM('PENDIENTE', 'APROBADO', 'RECHAZADO', 'CANCELADO', 'REEMBOLSADO'),
         allowNull: false,
         defaultValue: 'PENDIENTE'
     },
     fecha_pago: {
         type: DataTypes.DATE,
-        allowNull: true, // Será null hasta que el pago se apruebe
-    },
-    // Estos campos son específicos para integraciones (ej: MercadoPago)
-    transaccion_id: {
-        type: DataTypes.STRING,
         allowNull: true,
-        description: 'ID de la transacción devuelto por MercadoPago o número de comprobante'
     }
 }, {
     tableName: 'pagos',
-    timestamps: true,
-    paranoid: true, // Mantenemos el estándar de borrado lógico
+    timestamps: false, // El UML no indica createdAt/updatedAt
+    paranoid: false    // El UML no indica borrado lógico para Pagos
 });
 
 module.exports = Pago;

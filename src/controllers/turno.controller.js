@@ -1,10 +1,65 @@
-const { Turno } = require('../models');
+const { Turno, Disponibilidad } = require('../models');
+const { Op } = require('sequelize');
 
 // 1. Crear un nuevo turno
 const agendarTurno = async (req, res) => {
     try {
-        const { fecha, hora_inicio, notas, cliente_id, barbero_id, servicio_id } = req.body;
+        const { fecha, hora_inicio, notas, barbero_id, servicio_id } = req.body;
+        let { cliente_id } = req.body;
         
+        // Seguridad: Si el usuario es CLIENTE, forzamos su propio ID para evitar que agende para otros
+        if (req.usuario && req.usuario.rol === 'CLIENTE') {
+            cliente_id = req.usuario.usuario_id;
+        }
+
+        if (!cliente_id || !barbero_id || !servicio_id || !fecha || !hora_inicio) {
+            return res.status(400).json({ error: 'Faltan datos obligatorios para agendar el turno' });
+        }
+
+        // VALIDACIÓN 1: ¿El barbero trabaja ese día y en ese horario?
+        const diaSemanaSolicitado = new Date(fecha).getUTCDay(); 
+
+        const disponibilidad = await Disponibilidad.findOne({
+            where: {
+                barbero_id: barbero_id,
+                dia_semana: diaSemanaSolicitado,
+                activo: true, 
+                hora_inicio: {
+                    [Op.lte]: hora_inicio 
+                },
+                hora_fin: {
+                    [Op.gt]: hora_inicio  
+                }
+            }
+        });
+
+        if (!disponibilidad) {
+            return res.status(400).json({ 
+                error: 'Fuera de horario', 
+                detalle: 'El barbero no trabaja en ese día u horario.' 
+            });
+        }
+
+        // VALIDACIÓN 2: Prevenir Double-Booking (Superposición)
+        const turnoSuperpuesto = await Turno.findOne({
+            where: {
+                barbero_id: barbero_id,
+                fecha: fecha,
+                hora_inicio: hora_inicio,
+                estado: {
+                    [Op.in]: ['PENDIENTE', 'CONFIRMADO']
+                }
+            }
+        });
+
+        if (turnoSuperpuesto) {
+            return res.status(409).json({ 
+                error: 'Horario no disponible', 
+                detalle: 'El barbero ya tiene un turno agendado en ese horario exacto.' 
+            });
+        }
+
+        // Si pasó las validaciones, creamos el turno
         const nuevoTurno = await Turno.create({
             fecha,
             hora_inicio,
@@ -50,39 +105,38 @@ const obtenerTurnoPorId = async (req, res) => {
     }
 };
 
-// 4. Cambiar el estado o reprogramar (Actualización parcial)
+// 4. Cambiar el estado o reprogramar
 const actualizarTurno = async (req, res) => {
     try {
         const { id } = req.params;
         const { fecha, hora_inicio, estado, notas } = req.body;
-        // Simularemos que extraemos el ROL de quien hace la petición desde el token de autenticación
-        // const rolUsuario = req.usuario.rol; (Lo descomentarás cuando tengas JWT)
-        const rolUsuario = 'CLIENTE'; // Para probar. En la vida real, vendrá del middleware
+        
+        // Usar el rol real del usuario desde el token
+        const rolUsuario = req.usuario.rol; 
+        const usuarioIdAutenticado = req.usuario.usuario_id;
 
         const turno = await Turno.findByPk(id);
-        if (!turno) {
-            return res.status(404).json({ error: 'Turno no encontrado' });
+        if (!turno) return res.status(404).json({ error: 'Turno no encontrado' });
+
+        // Control de dueño (Seguridad)
+        if (rolUsuario === 'CLIENTE' && turno.cliente_id !== usuarioIdAutenticado) {
+            return res.status(403).json({ error: 'No tienes permiso para modificar este turno' });
         }
 
-        // REGLA DE NEGOCIO: Límite de cancelación para clientes
+        // Política de cancelación (Solo para clientes)
         if (estado === 'CANCELADO' && rolUsuario === 'CLIENTE') {
-            // Unimos la fecha (YYYY-MM-DD) y hora (HH:MM:SS) del turno y lo convertimos a un objeto Date
             const fechaHoraTurno = new Date(`${turno.fecha}T${turno.hora_inicio}`);
-            const ahora = new Date(); // La hora exacta de este momento
-            
-            // Calculamos la diferencia en milisegundos y la pasamos a horas
+            const ahora = new Date();
             const diferenciaHoras = (fechaHoraTurno - ahora) / (1000 * 60 * 60);
 
-            // Si faltan menos de 6 horas, bloqueamos la cancelación
-            if (diferenciaHoras < 6 && diferenciaHoras > 0) {
+            if (diferenciaHoras < 6) {
                 return res.status(403).json({ 
                     error: 'Políticas de cancelación', 
-                    detalle: 'No podés cancelar el turno con menos de 6 horas de anticipación. Por favor, comunícate con la recepcionista.' 
+                    detalle: 'No podés cancelar con menos de 6 horas de anticipación.' 
                 });
             }
         }
 
-        // Si pasa la validación (o si es el admin/barbero quien cancela), actualizamos normal
         turno.fecha = fecha ?? turno.fecha;
         turno.hora_inicio = hora_inicio ?? turno.hora_inicio;
         turno.estado = estado ?? turno.estado;
@@ -91,7 +145,7 @@ const actualizarTurno = async (req, res) => {
         await turno.save();
         res.status(200).json({ mensaje: 'Turno actualizado correctamente', turno });
     } catch (error) {
-        res.status(500).json({ error: 'Error al actualizar el turno', detalle: error.message });
+        res.status(500).json({ error: 'Error al actualizar', detalle: error.message });
     }
 };
 
@@ -150,4 +204,3 @@ module.exports = {
     eliminarTurno,
     restaurarTurno
 };
-   
