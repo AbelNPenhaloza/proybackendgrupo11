@@ -1,10 +1,9 @@
 require('dotenv').config();
 const app = require('./src/app');
-
 const { sequelize, testConnection } = require('./src/config/database');
-
 // Importamos los modelos para que Sequelize registre las tablas y relaciones
 require('./src/models');
+const { iniciarCronRecordatorios } = require('./src/jobs/recordatorio.job');
 
 const PORT = process.env.PORT || 3000;
 
@@ -19,6 +18,9 @@ async function start() {
 
     app.listen(PORT, () => {
       console.log(` Servidor corriendo en http://localhost:${PORT}`);
+      // Iniciar el cron de recordatorios después de que el servidor esté listo
+      iniciarCronRecordatorios();
+      console.log(' Cron de recordatorios iniciado.');
     });
   } catch (error) {
     console.error(' No se pudo iniciar el servidor:', error.message);
